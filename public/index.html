@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Upload Form</title>
+</head>
+<body>
+  <h2>Upload Your Details</h2>
+  <form action="/api/upload" method="POST" enctype="multipart/form-data">
+    <input type="text" name="name" placeholder="Name" required><br><br>
+    <input type="number" name="age" placeholder="Age" required><br><br>
+    <input type="text" name="id" placeholder="ID" required><br><br>
+    <input type="file" name="photo" accept="image/*" required><br><br>
+    <button type="submit">Upload</button>
+  </form>
+</body>
+</html>
