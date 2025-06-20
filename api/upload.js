@@ -1,16 +1,17 @@
-const busboy = require('busboy');
 const FormData = require('form-data');
 const fetch = require('node-fetch');
+const busboy = require('busboy');
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).send("Method Not Allowed");
   }
 
   const bb = busboy({ headers: req.headers });
+
   let fileBuffer = Buffer.alloc(0);
   let fileName = "";
-  const fields = {};
+  let fields = {};
 
   bb.on('file', (name, file, info) => {
     fileName = info.filename;
@@ -28,73 +29,69 @@ export default async function handler(req, res) {
     const CHAT_ID = process.env.CHAT_ID;
 
     if (!TELEGRAM_TOKEN || !CHAT_ID) {
-      return res.status(500).send("❌ Environment variables missing");
+      return res.status(500).send("❌ Missing environment variables");
     }
 
     const { name, username, email, note } = fields;
 
-    // Check if required fields are filled
     if (!name || !username || !email || !fileBuffer.length) {
-      return res.status(400).send("❌ Missing required fields.");
+      return res.status(400).send("❌ Missing fields or file.");
     }
 
-    // STEP 1: Fetch message history
-    let existingUsernames = [];
-    let existingEmails = [];
-
+    // ✅ Step 1: Check Telegram messages for duplicates
     try {
-      const historyRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates`);
-      const history = await historyRes.json();
+      const updatesRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates`);
+      const updates = await updatesRes.json();
 
-      const messages = history.result
-        .map(m => m.message?.text)
+      const messages = updates.result
+        .map(u => u.message?.caption || '')
         .filter(Boolean);
 
-      existingUsernames = messages
-        .filter(m => m.includes("USERNAME:"))
-        .map(m => m.split("|")[1]?.replace("USERNAME:", "").trim().toLowerCase());
+      const existingUsernames = messages
+        .filter(m => m.includes("Username:"))
+        .map(m => m.match(/Username:\s*(\S+)/i)?.[1]?.toLowerCase())
+        .filter(Boolean);
 
-      existingEmails = messages
-        .filter(m => m.includes("EMAIL:"))
-        .map(m => m.split("|")[2]?.replace("EMAIL:", "").trim().toLowerCase());
+      const existingEmails = messages
+        .filter(m => m.includes("Email:"))
+        .map(m => m.match(/Email:\s*(\S+)/i)?.[1]?.toLowerCase())
+        .filter(Boolean);
+
+      if (existingUsernames.includes(username.toLowerCase())) {
+        return res.status(400).send(`❌ Username "${username}" already exists.`);
+      }
+
+      if (existingEmails.includes(email.toLowerCase())) {
+        return res.status(400).send(`❌ Email "${email}" already exists.`);
+      }
+
     } catch (err) {
-      return res.status(500).send("❌ Failed to check duplicates: " + err.message);
+      return res.status(500).send("❌ Failed to check existing users: " + err.message);
     }
 
-    // STEP 2: Check if username or email exists
-    if (existingUsernames.includes(username.toLowerCase())) {
-      return res.status(400).send(`❌ Username "${username}" already exists.`);
-    }
-
-    if (existingEmails.includes(email.toLowerCase())) {
-      return res.status(400).send(`❌ Email "${email}" already exists.`);
-    }
-
-    // STEP 3: Proceed to send file
-    const caption = `📤 File Upload\nNAME: ${name} | USERNAME: ${username} | EMAIL: ${email}\n📝 Note: ${note || 'None'}`;
-
+    // ✅ Step 2: Upload to Telegram
+    const caption = `📤 *New Upload from ${name}*\nUsername: ${username}\nEmail: ${email}\n📝 Message: ${note || 'None'}`;
     const form = new FormData();
     form.append('chat_id', CHAT_ID);
-    form.append('caption', caption);
     form.append('document', fileBuffer, fileName);
+    form.append('caption', caption);
+    form.append('parse_mode', 'Markdown');
 
     try {
       const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument`, {
         method: 'POST',
         body: form
       });
-
       const result = await tgRes.json();
-
       if (result.ok) {
-        return res.status(200).send("✅ File uploaded and saved to Telegram Cloud.");
+        res.status(200).send("✅ File + info sent to Telegram!");
       } else {
-        return res.status(500).send("❌ Telegram Error: " + JSON.stringify(result));
+        res.status(500).send("❌ Telegram Error: " + JSON.stringify(result));
       }
     } catch (err) {
-      return res.status(500).send("❌ Upload Failed: " + err.message);
+      res.status(500).send("❌ Upload Failed: " + err.message);
     }
   });
 
   req.pipe(bb);
-}
+};
