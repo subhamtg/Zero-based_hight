@@ -21,7 +21,7 @@ module.exports = async (req, res) => {
   });
 
   bb.on('field', (name, val) => {
-    fields[name] = val.trim();
+    fields[name] = val;
   });
 
   bb.on('close', async () => {
@@ -34,50 +34,33 @@ module.exports = async (req, res) => {
 
     const { name, username, email, note } = fields;
 
-    if (!name || !username || !email || !fileBuffer.length) {
-      return res.status(400).send("❌ Please fill in all required fields.");
-    }
-
-    // 🔍 Step 1: Check for existing username/email in Telegram updates
+    // Fetch previous messages to check for existing username/email
     try {
       const updatesRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates`);
-      const updates = await updatesRes.json();
+      const updatesJson = await updatesRes.json();
+      const results = Array.isArray(updatesJson.result) ? updatesJson.result : [];
 
-      const messages = updates.result
+      const messages = results
         .map(u => u.message?.caption || '')
         .filter(Boolean);
 
-      const existingUsernames = messages
-        .filter(m => m.includes("Username:"))
-        .map(m => m.match(/Username:\s*(\S+)/i)?.[1]?.toLowerCase())
-        .filter(Boolean);
+      const exists = messages.some(msg =>
+        msg.includes(`🧑 Username: ${username}`) ||
+        msg.includes(`✉️ Email: ${email}`)
+      );
 
-      const existingEmails = messages
-        .filter(m => m.includes("Email:"))
-        .map(m => m.match(/Email:\s*(\S+)/i)?.[1]?.toLowerCase())
-        .filter(Boolean);
-
-      if (existingUsernames.includes(username.toLowerCase())) {
-        return res.status(400).send(`❌ Username "${username}" already exists.`);
+      if (exists) {
+        return res.status(400).send("❌ Username or Email already exists in cloud.");
       }
 
-      if (existingEmails.includes(email.toLowerCase())) {
-        return res.status(400).send(`❌ Email "${email}" already exists.`);
-      }
+      // Send file to Telegram
+      const caption = `📤 *New Upload from ${name}*\n🧑 Username: ${username}\n✉️ Email: ${email}\n📝 Message: ${note || 'None'}`;
+      const form = new FormData();
+      form.append('chat_id', CHAT_ID);
+      form.append('document', fileBuffer, fileName);
+      form.append('caption', caption);
+      form.append('parse_mode', 'Markdown');
 
-    } catch (err) {
-      return res.status(500).send("❌ Error checking existing users: " + err.message);
-    }
-
-    // ✅ Step 2: Upload to Telegram
-    const caption = `📤 *New Upload from ${name}*\nUsername: ${username}\nEmail: ${email}\n📝 Message: ${note || 'None'}`;
-    const form = new FormData();
-    form.append('chat_id', CHAT_ID);
-    form.append('document', fileBuffer, fileName);
-    form.append('caption', caption);
-    form.append('parse_mode', 'Markdown');
-
-    try {
       const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument`, {
         method: 'POST',
         body: form
@@ -89,8 +72,9 @@ module.exports = async (req, res) => {
       } else {
         res.status(500).send("❌ Telegram Error: " + JSON.stringify(result));
       }
+
     } catch (err) {
-      res.status(500).send("❌ Upload Failed: " + err.message);
+      res.status(500).send("❌ Error checking existing users: " + err.message);
     }
   });
 
