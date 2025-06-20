@@ -1,5 +1,5 @@
 {
-  "name": "telegram-cloud-uploader",
+  "name": "Zero-based_hight",
   "version": "1.0.0",
   "description": "Upload user data and files to Telegram using Subham's Cloud Bot",
   "main": "api/upload.js",
