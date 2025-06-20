@@ -40,9 +40,8 @@
   <form id="uploadForm">
     <h3>Upload to Subham Cloud</h3>
     <input type="text" name="name" placeholder="Your Name" required />
-    <input type="text" name="username" placeholder="Unique Username" required />
     <input type="email" name="email" placeholder="Your Email" required />
-    <textarea name="note" rows="3" placeholder="Your message (optional)"></textarea>
+    <textarea name="note" rows="3" placeholder="Your message..."></textarea>
     <input type="file" name="file" required />
     <button type="submit">Upload</button>
     <div id="message"></div>
@@ -52,27 +51,12 @@
     document.getElementById("uploadForm").onsubmit = async function(e) {
       e.preventDefault();
       const formData = new FormData(this);
-
-      // Create message in format: /register Name Username Email
-      const name = formData.get("name").trim();
-      const username = formData.get("username").trim();
-      const email = formData.get("email").trim();
-
-      const command = `/register ${name} ${username} ${email}`;
       const msg = document.getElementById("message");
       msg.textContent = "Uploading... ⏳";
-
-      const res = await fetch("/api/ask", {
+      const res = await fetch("/api/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: {
-            chat: { id: 123456 }, // Replace with real ID if using dynamic login
-            text: command
-          }
-        })
+        body: formData
       });
-
       const text = await res.text();
       msg.textContent = text;
       msg.style.color = text.includes("✅") ? "#00ffcc" : "#ff5050";
