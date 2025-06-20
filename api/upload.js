@@ -1,39 +1,59 @@
-const multer = require("multer");
-const axios = require("axios");
-const FormData = require("form-data");
-const fs = require("fs");
+const FormData = require('form-data');
+const fetch = require('node-fetch');
+const busboy = require('busboy');
 
-const upload = multer({ dest: "/tmp" });
+module.exports = async (req, res) => {
+  if (req.method === 'POST') {
+    const bb = busboy({ headers: req.headers });
 
-function runMiddleware(req, res, fn) {
-  return new Promise((resolve, reject) => {
-    fn(req, res, (result) => (result instanceof Error ? reject(result) : resolve(result)));
-  });
-}
+    let fileBuffer = Buffer.alloc(0);
+    let fileName = "";
+    let fields = {};
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).send("Method not allowed");
-
-  await runMiddleware(req, res, upload.single("photo"));
-
-  const { name, age, id } = req.body;
-  const photo = req.file;
-
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-
-  const caption = `👤 Name: ${name}\n🎂 Age: ${age}\n🆔 ID: ${id}`;
-  const form = new FormData();
-  form.append("chat_id", chatId);
-  form.append("caption", caption);
-  form.append("photo", fs.createReadStream(photo.path));
-
-  try {
-    await axios.post(`https://api.telegram.org/bot${botToken}/sendPhoto`, form, {
-      headers: form.getHeaders(),
+    bb.on('file', (name, file, info) => {
+      fileName = info.filename;
+      file.on('data', (data) => {
+        fileBuffer = Buffer.concat([fileBuffer, data]);
+      });
     });
-    res.status(200).send("✅ Uploaded to Telegram");
-  } catch {
-    res.status(500).send("❌ Failed to send");
+
+    bb.on('field', (name, val) => {
+      fields[name] = val;
+    });
+
+    bb.on('close', async () => {
+      const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+      const CHAT_ID = process.env.CHAT_ID;
+
+      if (!TELEGRAM_TOKEN || !CHAT_ID) {
+        return res.status(500).send("❌ Missing environment variables");
+      }
+
+      const caption = `📤 *New Upload from ${fields.name}*\n✉️ Email: ${fields.email}\n📝 Message: ${fields.note || 'None'}`;
+      const form = new FormData();
+      form.append('chat_id', CHAT_ID);
+      form.append('document', fileBuffer, fileName);
+      form.append('caption', caption);
+      form.append('parse_mode', 'Markdown');
+
+      try {
+        const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument`, {
+          method: 'POST',
+          body: form
+        });
+        const result = await tgRes.json();
+        if (result.ok) {
+          res.status(200).send("✅ File + info sent to Telegram!");
+        } else {
+          res.status(500).send("❌ Telegram Error: " + JSON.stringify(result));
+        }
+      } catch (err) {
+        res.status(500).send("❌ Upload Failed: " + err.message);
+      }
+    });
+
+    req.pipe(bb);
+  } else {
+    res.status(405).send("Method Not Allowed");
   }
-}
+};
