@@ -1,16 +1,67 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Upload Form</title>
+  <meta charset="UTF-8" />
+  <title>Subham Telegram Cloud</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      background: linear-gradient(135deg, #1d2b64, #f8cdda);
+      font-family: 'Segoe UI', sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      height: 100vh; margin: 0; color: white;
+    }
+    form {
+      background: rgba(0,0,0,0.3);
+      padding: 30px; border-radius: 20px;
+      backdrop-filter: blur(8px);
+      display: flex; flex-direction: column; gap: 15px;
+      width: 300px;
+    }
+    input, textarea, button {
+      padding: 10px; border: none; border-radius: 8px;
+      font-size: 1em;
+    }
+    button {
+      background: #00ffe0; color: #000; font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    button:hover {
+      background: #0ff;
+    }
+    #message {
+      font-size: 0.95em; text-align: center;
+    }
+  </style>
 </head>
 <body>
-  <h2>Upload Your Details</h2>
-  <form action="/api/upload" method="POST" enctype="multipart/form-data">
-    <input type="text" name="name" placeholder="Name" required><br><br>
-    <input type="number" name="age" placeholder="Age" required><br><br>
-    <input type="text" name="id" placeholder="ID" required><br><br>
-    <input type="file" name="photo" accept="image/*" required><br><br>
+
+  <form id="uploadForm">
+    <h3>Upload to Subham Cloud</h3>
+    <input type="text" name="name" placeholder="Your Name" required />
+    <input type="email" name="email" placeholder="Your Email" required />
+    <textarea name="note" rows="3" placeholder="Your message..."></textarea>
+    <input type="file" name="file" required />
     <button type="submit">Upload</button>
+    <div id="message"></div>
   </form>
+
+  <script>
+    document.getElementById("uploadForm").onsubmit = async function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const msg = document.getElementById("message");
+      msg.textContent = "Uploading... ⏳";
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData
+      });
+      const text = await res.text();
+      msg.textContent = text;
+      msg.style.color = text.includes("✅") ? "#00ffcc" : "#ff5050";
+    };
+  </script>
+
 </body>
 </html>
