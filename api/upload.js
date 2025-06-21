@@ -2,7 +2,10 @@ const FormData = require('form-data');
 const fetch = require('node-fetch');
 const busboy = require('busboy');
 
-let users = []; // In-memory array to store registered users
+// In-memory user tracking (can be replaced with file/database)
+let users = [
+  { username: "subham", email: "subham@example.com" }
+];
 
 module.exports = async (req, res) => {
   if (req.method === 'POST') {
@@ -26,7 +29,6 @@ module.exports = async (req, res) => {
     bb.on('close', async () => {
       const { name, username, email, note } = fields;
 
-      // ✅ Check for duplicates
       const exists = users.find(
         (u) => u.username === username || u.email === email
       );
@@ -35,7 +37,6 @@ module.exports = async (req, res) => {
         return res.status(400).send("❌ Username or email already exists!");
       }
 
-      // ✅ Add new user to memory
       users.push({ name, username, email });
 
       const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -45,9 +46,7 @@ module.exports = async (req, res) => {
         return res.status(500).send("❌ Missing Telegram credentials");
       }
 
-      // Escape Markdown characters
       const safeNote = (note || 'None').replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-
       const caption = `📤 *Upload by:* ${name}\n👤 *Username:* ${username}\n✉️ *Email:* ${email}\n📝 *Note:* ${safeNote}`;
 
       const form = new FormData();
@@ -61,6 +60,7 @@ module.exports = async (req, res) => {
           method: 'POST',
           body: form
         });
+
         const result = await tgRes.json();
         if (result.ok) {
           res.status(200).send("✅ File uploaded to Telegram Cloud!");
