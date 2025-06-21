@@ -2,71 +2,49 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Subham Telegram Cloud</title>
+  <title>Subham Telegram Cloud ☁️</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
       background: linear-gradient(135deg, #1d2b64, #f8cdda);
       font-family: 'Segoe UI', sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-      color: white;
+      display: flex; align-items: center; justify-content: center;
+      height: 100vh; margin: 0; color: white;
     }
-
     form {
-      background: rgba(0, 0, 0, 0.3);
-      padding: 30px;
-      border-radius: 20px;
+      background: rgba(0,0,0,0.3);
+      padding: 30px; border-radius: 20px;
       backdrop-filter: blur(8px);
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
+      display: flex; flex-direction: column; gap: 15px;
       width: 320px;
     }
-
     input, textarea, button {
-      padding: 10px;
-      border: none;
-      border-radius: 8px;
+      padding: 10px; border: none; border-radius: 8px;
       font-size: 1em;
     }
-
     button {
-      background: #00ffe0;
-      color: #000;
-      font-weight: bold;
+      background: #00ffe0; color: #000; font-weight: bold;
       cursor: pointer;
       transition: all 0.3s ease;
     }
-
     button:hover {
       background: #0ff;
     }
-
     #message {
-      font-size: 0.95em;
-      text-align: center;
-    }
-
-    h3 {
-      margin: 0;
-      text-align: center;
+      font-size: 0.95em; text-align: center;
     }
   </style>
 </head>
 <body>
 
   <form id="uploadForm">
-    <h3>Upload to Subham Cloud</h3>
+    <h3>Upload to Subham Cloud ☁️</h3>
     <input type="text" name="name" placeholder="Your Name" required />
     <input type="text" name="username" placeholder="Unique Username" required />
     <input type="email" name="email" placeholder="Your Email" required />
     <textarea name="note" rows="3" placeholder="Your message (optional)"></textarea>
     <input type="file" name="file" required />
-    <button type="submit">Upload</button>
+    <button type="submit">Upload File</button>
     <div id="message"></div>
   </form>
 
@@ -76,6 +54,7 @@
       const formData = new FormData(this);
       const msg = document.getElementById("message");
       msg.textContent = "Uploading... ⏳";
+      msg.style.color = "#ffffff";
 
       try {
         const res = await fetch("/api/upload", {
@@ -86,8 +65,8 @@
         const text = await res.text();
         msg.textContent = text;
         msg.style.color = text.includes("✅") ? "#00ffcc" : "#ff5050";
-      } catch (error) {
-        msg.textContent = "❌ Upload Failed!";
+      } catch (err) {
+        msg.textContent = "❌ Upload failed: " + err.message;
         msg.style.color = "#ff5050";
       }
     };
