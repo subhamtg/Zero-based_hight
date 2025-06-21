@@ -53,34 +53,16 @@
       e.preventDefault();
       const formData = new FormData(this);
       const msg = document.getElementById("message");
-      msg.textContent = "🔍 Checking user...";
+      msg.textContent = "Uploading... ⏳";
 
-      const checkRes = await fetch("/api/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: formData.get("username"),
-          email: formData.get("email")
-        })
-      });
-
-      const checkJson = await checkRes.json();
-
-      if (checkJson.exists) {
-        msg.textContent = "❌ Username or Email already exists!";
-        msg.style.color = "#ff5050";
-        return;
-      }
-
-      msg.textContent = "⏳ Uploading...";
-      const uploadRes = await fetch("/api/upload", {
+      const res = await fetch("/api/upload", {
         method: "POST",
         body: formData
       });
 
-      const resultText = await uploadRes.text();
-      msg.textContent = resultText;
-      msg.style.color = resultText.includes("✅") ? "#00ffcc" : "#ff5050";
+      const text = await res.text();
+      msg.textContent = text;
+      msg.style.color = text.includes("✅") ? "#00ffcc" : "#ff5050";
     };
   </script>
 
