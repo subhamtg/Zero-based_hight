@@ -2,15 +2,14 @@ const FormData = require('form-data');
 const fetch = require('node-fetch');
 const busboy = require('busboy');
 
-// In-memory store (replace with DB or JSON file for persistence)
-let storedUsers = [];
+let users = []; // In-memory array to store registered users
 
 module.exports = async (req, res) => {
   if (req.method === 'POST') {
     const bb = busboy({ headers: req.headers });
 
     let fileBuffer = Buffer.alloc(0);
-    let fileName = '';
+    let fileName = "";
     let fields = {};
 
     bb.on('file', (name, file, info) => {
@@ -27,17 +26,17 @@ module.exports = async (req, res) => {
     bb.on('close', async () => {
       const { name, username, email, note } = fields;
 
-      // 🔒 Check if user already exists
-      const isDuplicate = storedUsers.find(
-        (user) => user.username === username || user.email === email
+      // ✅ Check for duplicates
+      const exists = users.find(
+        (u) => u.username === username || u.email === email
       );
 
-      if (isDuplicate) {
-        return res.status(400).send("❌ Username or Email already exists!");
+      if (exists) {
+        return res.status(400).send("❌ Username or email already exists!");
       }
 
-      // ✅ Add user to stored list
-      storedUsers.push({ name, username, email });
+      // ✅ Add new user to memory
+      users.push({ name, username, email });
 
       const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
       const CHAT_ID = process.env.CHAT_ID;
@@ -46,7 +45,10 @@ module.exports = async (req, res) => {
         return res.status(500).send("❌ Missing Telegram credentials");
       }
 
-      const caption = `📤 *Upload by:* ${name}\n👤 *Username:* ${username}\n✉️ *Email:* ${email}\n📝 *Note:* ${note || 'None'}`.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+      // Escape Markdown characters
+      const safeNote = (note || 'None').replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+
+      const caption = `📤 *Upload by:* ${name}\n👤 *Username:* ${username}\n✉️ *Email:* ${email}\n📝 *Note:* ${safeNote}`;
 
       const form = new FormData();
       form.append('chat_id', CHAT_ID);
@@ -59,7 +61,6 @@ module.exports = async (req, res) => {
           method: 'POST',
           body: form
         });
-
         const result = await tgRes.json();
         if (result.ok) {
           res.status(200).send("✅ File uploaded to Telegram Cloud!");
