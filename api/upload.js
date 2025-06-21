@@ -1,14 +1,12 @@
-const fs = require('fs');
-const path = require('path');
 const FormData = require('form-data');
 const fetch = require('node-fetch');
 const busboy = require('busboy');
-
-// Path to users.json
-const usersFile = path.resolve(__dirname, '../../users.json');
+const supabase = require('../../lib/supabase'); // adjust if needed
 
 module.exports = async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).send("Method Not Allowed");
+  if (req.method !== 'POST') {
+    return res.status(405).send("Method Not Allowed");
+  }
 
   const bb = busboy({ headers: req.headers });
   let fileBuffer = Buffer.alloc(0);
@@ -17,7 +15,7 @@ module.exports = async (req, res) => {
 
   bb.on('file', (name, file, info) => {
     fileName = info.filename;
-    file.on('data', data => {
+    file.on('data', (data) => {
       fileBuffer = Buffer.concat([fileBuffer, data]);
     });
   });
@@ -29,27 +27,30 @@ module.exports = async (req, res) => {
   bb.on('close', async () => {
     const { name, username, email, note } = fields;
 
-    // Read existing users
-    let users = [];
-    if (fs.existsSync(usersFile)) {
-      const raw = fs.readFileSync(usersFile, 'utf8');
-      users = JSON.parse(raw || '[]');
+    if (!name || !username || !email) {
+      return res.status(400).send("❌ All fields are required!");
     }
 
-    // Check if username or email already exists
-    const exists = users.find(
-      (u) => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === email.toLowerCase()
-    );
+    // 🔍 Check in Supabase
+    const { data: existingUser, error } = await supabase
+      .from('users')
+      .select()
+      .or(`username.eq.${username},email.eq.${email}`)
+      .maybeSingle();
 
-    if (exists) {
-      return res.status(400).send("❌ Username or email already exists!");
+    if (error) {
+      return res.status(500).send("❌ Supabase error: " + error.message);
     }
 
-    // Add new user to file
-    users.push({ name, username, email, time: new Date().toISOString() });
-    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+    if (existingUser) {
+      return res.status(400).send("❌ Username or Email already exists!");
+    }
 
-    // Proceed to Telegram upload
+    // 🆕 Insert new user into Supabase
+    await supabase
+      .from('users')
+      .insert([{ name, username, email }]);
+
     const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
     const CHAT_ID = process.env.CHAT_ID;
 
@@ -58,7 +59,6 @@ module.exports = async (req, res) => {
     }
 
     const safeNote = (note || 'None').replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-
     const caption = `📤 *Upload by:* ${name}\n👤 *Username:* ${username}\n✉️ *Email:* ${email}\n📝 *Note:* ${safeNote}`;
 
     const form = new FormData();
@@ -73,6 +73,7 @@ module.exports = async (req, res) => {
         body: form
       });
       const result = await tgRes.json();
+
       if (result.ok) {
         res.status(200).send("✅ File uploaded to Telegram Cloud!");
       } else {
