@@ -2,17 +2,15 @@ const FormData = require('form-data');
 const fetch = require('node-fetch');
 const busboy = require('busboy');
 
-// In-memory user tracking (can be replaced with file/database)
-let users = [
-  { username: "subham", email: "subham@example.com" }
-];
+// In-memory store (replace with DB or JSON file for persistence)
+let storedUsers = [];
 
 module.exports = async (req, res) => {
   if (req.method === 'POST') {
     const bb = busboy({ headers: req.headers });
 
     let fileBuffer = Buffer.alloc(0);
-    let fileName = "";
+    let fileName = '';
     let fields = {};
 
     bb.on('file', (name, file, info) => {
@@ -29,15 +27,17 @@ module.exports = async (req, res) => {
     bb.on('close', async () => {
       const { name, username, email, note } = fields;
 
-      const exists = users.find(
-        (u) => u.username === username || u.email === email
+      // 🔒 Check if user already exists
+      const isDuplicate = storedUsers.find(
+        (user) => user.username === username || user.email === email
       );
 
-      if (exists) {
-        return res.status(400).send("❌ Username or email already exists!");
+      if (isDuplicate) {
+        return res.status(400).send("❌ Username or Email already exists!");
       }
 
-      users.push({ name, username, email });
+      // ✅ Add user to stored list
+      storedUsers.push({ name, username, email });
 
       const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
       const CHAT_ID = process.env.CHAT_ID;
@@ -46,8 +46,7 @@ module.exports = async (req, res) => {
         return res.status(500).send("❌ Missing Telegram credentials");
       }
 
-      const safeNote = (note || 'None').replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-      const caption = `📤 *Upload by:* ${name}\n👤 *Username:* ${username}\n✉️ *Email:* ${email}\n📝 *Note:* ${safeNote}`;
+      const caption = `📤 *Upload by:* ${name}\n👤 *Username:* ${username}\n✉️ *Email:* ${email}\n📝 *Note:* ${note || 'None'}`.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
 
       const form = new FormData();
       form.append('chat_id', CHAT_ID);
