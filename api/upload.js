@@ -4,7 +4,8 @@ const FormData = require('form-data');
 const fetch = require('node-fetch');
 const busboy = require('busboy');
 
-const usersPath = path.resolve(__dirname, '../../users.json');
+// Path to users.json
+const usersFile = path.resolve(__dirname, '../../users.json');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send("Method Not Allowed");
@@ -28,31 +29,37 @@ module.exports = async (req, res) => {
   bb.on('close', async () => {
     const { name, username, email, note } = fields;
 
-    // Step 1: Read existing users from JSON
+    // Read existing users
     let users = [];
-    if (fs.existsSync(usersPath)) {
-      const raw = fs.readFileSync(usersPath, 'utf-8');
+    if (fs.existsSync(usersFile)) {
+      const raw = fs.readFileSync(usersFile, 'utf8');
       users = JSON.parse(raw || '[]');
     }
 
-    // Step 2: Check if user already exists (by username or email)
-    const alreadyExists = users.some(
+    // Check if username or email already exists
+    const exists = users.find(
       (u) => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === email.toLowerCase()
     );
-    if (alreadyExists) {
-      return res.status(400).send("❌ Username or Email already exists!");
+
+    if (exists) {
+      return res.status(400).send("❌ Username or email already exists!");
     }
 
-    // Step 3: Save new user to JSON
+    // Add new user to file
     users.push({ name, username, email, time: new Date().toISOString() });
-    fs.writeFileSync(usersPath, JSON.stringify(users, null, 2));
+    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
 
-    // Step 4: Send file to Telegram
+    // Proceed to Telegram upload
     const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
     const CHAT_ID = process.env.CHAT_ID;
-    if (!TELEGRAM_TOKEN || !CHAT_ID) return res.status(500).send("❌ Missing ENV variables");
 
-    const caption = `📤 *Upload by:* ${name}\n👤 *Username:* ${username}\n✉️ *Email:* ${email}\n📝 *Note:* ${note || 'None'}`.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+    if (!TELEGRAM_TOKEN || !CHAT_ID) {
+      return res.status(500).send("❌ Missing Telegram credentials");
+    }
+
+    const safeNote = (note || 'None').replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+
+    const caption = `📤 *Upload by:* ${name}\n👤 *Username:* ${username}\n✉️ *Email:* ${email}\n📝 *Note:* ${safeNote}`;
 
     const form = new FormData();
     form.append('chat_id', CHAT_ID);
@@ -65,10 +72,9 @@ module.exports = async (req, res) => {
         method: 'POST',
         body: form
       });
-
       const result = await tgRes.json();
       if (result.ok) {
-        res.status(200).send("✅ File uploaded and user saved!");
+        res.status(200).send("✅ File uploaded to Telegram Cloud!");
       } else {
         res.status(500).send("❌ Telegram Error: " + JSON.stringify(result));
       }
